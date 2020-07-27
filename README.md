@@ -1,6 +1,6 @@
 # CDK CICD library
 
-Utility for generating CICD artifacts.
+Utility for generating AWS CICD pipelines using simple YAML syntax.
 
 ## Usage:
 
