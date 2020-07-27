@@ -1,4 +1,4 @@
-# EPR CDK CICD library
+# CDK CICD library
 
 Utility for generating CICD artifacts.
 
@@ -8,13 +8,13 @@ Utility for generating CICD artifacts.
 
 ```yaml
 pipelines:
-  - name: epr-shared
+  - name: my-pipeline-name
     stages:
       - name: source
         actions:
           - name: source
             type: CODECOMMIT
-            repository: EPR-Shared-ProServe
+            repository: my-repo-name
             output: source
       - name: update-cicd
         actions:
