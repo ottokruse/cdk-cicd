@@ -48,4 +48,6 @@ with open("pipelines.yaml")) as f:
 
 # Then, somewhere in your CDK stack:
 setup_cicd(scope, id, pipelines=pipelines)
+
+# And :tata: now you have an AWS CodePipeline with all tha actions and stages in it, as per your spec
 ```
