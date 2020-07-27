@@ -32,6 +32,10 @@ pipelines:
             environment:
               build_image: AMAZON_LINUX_2_3
               privileged: true
+            build_spec: buildspec-multi-account-deploy.yaml # Use assume.sh in buildspec
+            environment_variables:
+              TARGET_ACCOUNT: "123456789012"
+              TARGET_ROLE: deployment-role-in-target-account
 ```
 
 2. Use pipelines.yaml to generate the CICD constructs needed:
