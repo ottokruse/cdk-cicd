@@ -1,0 +1,10 @@
+version: "0.2"
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+  build:
+    commands:
+      - if [ ! -z "$DO_CODEARTIFACT_LOGIN" ]; then PIP_CREDS="$(./codeartifact_login.sh)" && eval "$PIP_CREDS"; fi
+      - if [ ! -z "$TARGET_ACCOUNT" ]; then CREDS="$(./assume.sh $TARGET_ACCOUNT $TARGET_ROLE)" && eval "$CREDS"; fi
+      - python -c "print('hello world')"
