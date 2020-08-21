@@ -43,7 +43,7 @@ pipelines:
 
 ```python
 import yaml
-from epr_cicd import setup_cicd
+from cdk_cicd import setup_cicd
 with open("pipelines.yaml")) as f:
     pipelines = yaml.load(f, Loader=yaml.FullLoader)["pipelines"]
 
