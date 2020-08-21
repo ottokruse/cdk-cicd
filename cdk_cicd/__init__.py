@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_iam,
     aws_lambda,
     aws_s3,
+    aws_kms,
 )
 
 DIR = Path(__file__).parent
@@ -25,6 +26,7 @@ __all__ = [
     "CodeCommitAction",
     "LambdaInvokeAction",
     "Pipelines",
+    "S3SourceAction",
 ]
 
 
@@ -54,6 +56,17 @@ class CodeCommitActionBase(Action):
 
 class CodeCommitAction(CodeCommitActionBase, total=False):
     branch: str
+
+
+class S3SourceActionBase(Action):
+    type: Literal["S3_SOURCE"]
+    output: str
+    key: str
+
+
+class S3SourceAction(S3SourceActionBase, total=False):
+    bucket: str
+    kms_key_arn: str
 
 
 class CodeBuildActionBase(Action):
@@ -104,6 +117,7 @@ class Stage(TypedDict):
         Union[
             LambdaInvokeAction,
             CodeCommitAction,
+            S3SourceAction,
             CodeBuildAction,
             CloudFormationCreateUpdateStackAction,
             ApprovalAction,
@@ -198,6 +212,7 @@ def create_action(
         CloudFormationCreateUpdateStackAction,
         ApprovalAction,
         LambdaInvokeAction,
+        S3SourceAction,
     ],
 ):
     action_name = action_def["name"]
@@ -221,6 +236,36 @@ def create_action(
             branch=action_def.get("branch", "master"),
             run_order=run_order,
             role=role,
+        )
+    elif action_def["type"] == "S3_SOURCE":
+        action_def = cast(S3SourceAction, action_def)
+        output = aws_codepipeline.Artifact(action_def["output"])
+        if "kms_key_arn" in action_def:
+            role = aws_iam.Role(
+                scope, f"{id}Role", assumed_by=aws_iam.AccountRootPrincipal(),
+            )
+            aws_kms.Key.from_key_arn(
+                scope, f"{id}KeyRef", key_arn=action_def["kms_key_arn"]
+            ).grant_decrypt(role)
+        if "bucket" in action_def:
+            bucket = aws_s3.Bucket.from_bucket_name(
+                scope, f"{id}SourceBucketRef", action_def["bucket"]
+            )
+        else:
+            bucket = aws_s3.Bucket(
+                scope,
+                f"{id}SourceBucket",
+                block_public_access=aws_s3.BlockPublicAccess.BLOCK_ALL,
+                removal_policy=core.RemovalPolicy.DESTROY,
+            )
+            core.CfnOutput(scope, f"{id}SourceBucketName", value=bucket.bucket_name)
+        return aws_codepipeline_actions.S3SourceAction(
+            action_name=action_name,
+            output=output,
+            run_order=run_order,
+            role=role,
+            bucket=bucket,
+            bucket_key=action_def["key"],
         )
     elif action_def["type"] == "CODEBUILD":
         action_def = cast(CodeBuildAction, action_def)
@@ -327,4 +372,3 @@ def create_action(
             user_parameters=user_parameters,
             role=role,
         )
-
