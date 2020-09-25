@@ -250,7 +250,9 @@ def create_action(
         output = aws_codepipeline.Artifact(action_def["output"])
         if "kms_key_arn" in action_def:
             role = aws_iam.Role(
-                scope, f"{id}Role", assumed_by=aws_iam.AccountRootPrincipal(),
+                scope,
+                f"{id}Role",
+                assumed_by=aws_iam.AccountRootPrincipal(),
             )
             aws_kms.Key.from_key_arn(
                 scope, f"{id}KeyRef", key_arn=action_def["kms_key_arn"]
