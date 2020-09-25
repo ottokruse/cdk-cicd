@@ -43,7 +43,9 @@ class ApprovalActionBase(Action):
 
 
 class ApprovalAction(ApprovalActionBase, total=False):
-    pass
+    additional_information: str
+    external_entity_link: str
+    notification_topic: str
 
 
 class CodeCommitActionBase(Action):
@@ -67,6 +69,10 @@ class CodeBuildAction(CodeBuildActionBase, total=False):
     environment_variables: dict
     outputs: List[str]
     extra_inputs: List[str]
+    compute_type: Union[
+        Literal["SMALL"], Literal["MEDIUM"], Literal["LARGE"], Literal["X2_LARGE"]
+    ]
+    timeout_minutes: int
 
 
 class CloudFormationActionBase(Action):
@@ -200,8 +206,9 @@ def create_action(
         LambdaInvokeAction,
     ],
 ):
-    action_name = action_def["name"]
+    action_name = action_def.pop("name")
     run_order = action_def.get("run_order", 1)
+    variables_namespace = action_def.get("variables_namespace")
     role = (
         aws_iam.Role.from_role_arn(scope, f"{id}RoleRef", action_def["role_arn"])
         if "role_arn" in action_def
@@ -221,6 +228,7 @@ def create_action(
             branch=action_def.get("branch", "master"),
             run_order=run_order,
             role=role,
+            variables_namespace=variables_namespace,
         )
     elif action_def["type"] == "CODEBUILD":
         action_def = cast(CodeBuildAction, action_def)
@@ -228,7 +236,10 @@ def create_action(
         project_params = {
             "build_spec": aws_codebuild.BuildSpec.from_source_filename(
                 action_def.get("build_spec", "buildspec.yaml")
-            )
+            ),
+            "timeout": core.Duration.minutes(
+                int(action_def.get("timeout_minutes", 60))
+            ),
         }
         project_params["environment"] = {
             "build_image": aws_codebuild.LinuxBuildImage.AMAZON_LINUX_2_3
@@ -238,6 +249,11 @@ def create_action(
                 project_params["environment"]["build_image"] = getattr(
                     aws_codebuild.LinuxBuildImage,
                     action_def["environment"].pop("build_image"),
+                )
+            if "compute_type" in action_def["environment"]:
+                project_params["environment"]["compute_type"] = getattr(
+                    aws_codebuild.ComputeType,
+                    action_def["environment"].pop("compute_type"),
                 )
             project_params["environment"].update(**action_def["environment"])
         project_role = aws_iam.Role(
@@ -251,16 +267,34 @@ def create_action(
                 actions=["*"], resources=["*"], effect=aws_iam.Effect.ALLOW
             )
         )
-        project = aws_codebuild.PipelineProject(
-            scope, f"{id}Project", project_name=id, role=project_role, **project_params
-        )
-        environment_variables = (
+        project_environment_variables = (
             {
                 var_key: aws_codebuild.BuildEnvironmentVariable(
-                    value=var_value,
+                    value=str(var_value),
                     type=aws_codebuild.BuildEnvironmentVariableType.PLAINTEXT,
                 )
                 for var_key, var_value in action_def["environment_variables"].items()
+                if "#" not in str(var_value)
+            }
+            if "environment_variables" in action_def
+            else None
+        )
+        project = aws_codebuild.PipelineProject(
+            scope,
+            f"{id}Project",
+            project_name=id,
+            role=project_role,
+            environment_variables=project_environment_variables,
+            **project_params,
+        )
+        pipeline_environment_variables = (
+            {
+                var_key: aws_codebuild.BuildEnvironmentVariable(
+                    value=str(var_value),
+                    type=aws_codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+                )
+                for var_key, var_value in action_def["environment_variables"].items()
+                if "#" in str(var_value)
             }
             if "environment_variables" in action_def
             else None
@@ -281,8 +315,8 @@ def create_action(
             project=project,
             run_order=run_order,
             role=role,
-            variables_namespace=action_def.get("variables_namespace"),
-            environment_variables=environment_variables,
+            variables_namespace=variables_namespace,
+            environment_variables=pipeline_environment_variables,
             extra_inputs=extra_inputs,
             outputs=outputs,
         )
@@ -309,11 +343,18 @@ def create_action(
             role=role,
             parameter_overrides=action_def.get("parameter_overrides"),
             run_order=run_order,
+            variables_namespace=variables_namespace,
         )
     elif action_def["type"] == "APPROVAL":
         action_def = cast(ApprovalAction, action_def)
         return aws_codepipeline_actions.ManualApprovalAction(
-            action_name=action_name, run_order=run_order, role=role
+            action_name=action_name,
+            run_order=run_order,
+            role=role,
+            additional_information=action_def.get("additional_information"),
+            external_entity_link=action_def.get("external_entity_link"),
+            notification_topic=action_def.get("notification_topic"),
+            variables_namespace=variables_namespace,
         )
     elif action_def["type"] == "LAMBDA":
         action_def = cast(LambdaInvokeAction, action_def)
@@ -326,5 +367,5 @@ def create_action(
             ),
             user_parameters=user_parameters,
             role=role,
+            variables_namespace=variables_namespace,
         )
-
