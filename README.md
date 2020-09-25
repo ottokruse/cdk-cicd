@@ -16,14 +16,6 @@ pipelines:
             type: CODECOMMIT
             repository: my-repo-name
             output: source
-      - name: update-cicd
-        actions:
-          - name: update-cicd
-            type: CODEBUILD
-            input: source
-            build_spec: buildspec-cicd.yaml
-            environment:
-              build_image: AMAZON_LINUX_2_3
       - name: deploy
         actions:
           - name: deploy
@@ -36,13 +28,22 @@ pipelines:
             environment_variables:
               TARGET_ACCOUNT: "123456789012"
               TARGET_ROLE: deployment-role-in-target-account
+      - name: run-smoke-test
+        actions:
+          - name: run-smoke-test
+            type: LAMBDA
+            input: source
+            function_arn: arn:aws:lambda:us-east-1:123456789012:function:test-fn
+            user_parameters:
+              param1: true
+              param2: "A string"
 ```
 
 2. Use pipelines.yaml to generate the CICD constructs needed:
 
 ```python
 import yaml
-from epr_cicd import setup_cicd
+from cdk_cicd import setup_cicd
 with open("pipelines.yaml")) as f:
     pipelines = yaml.load(f, Loader=yaml.FullLoader)["pipelines"]
 
