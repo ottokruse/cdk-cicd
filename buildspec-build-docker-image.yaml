@@ -1,0 +1,21 @@
+version: "0.2"
+env:
+  exported-variables:
+    - IMAGE_ID
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+  build:
+    commands:
+      - AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r .Account)"
+      - REPO_URI="${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_NAME}"
+      - docker rmi "${REPO_URI}" --no-prune || true # Prevents mixing up digest that may be cached on the CodeBuild machine
+      - $(aws ecr get-login --no-include-email) # Sign-in already, to support using base images in ECR
+      - docker build . -t "${REPO_URI}:latest"
+  post_build:
+    commands:
+      - docker push "${REPO_URI}:latest"
+      - IMAGE_DIGEST=$(docker images --digests --format "{{.Digest}}" "${REPO_URI}")
+      - echo "Image digest is ${IMAGE_DIGEST}"
+      - export IMAGE_ID="${REPO_URI}:latest@${IMAGE_DIGEST}"
