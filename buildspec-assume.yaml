@@ -1,0 +1,15 @@
+version: "0.2"
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+  build:
+    commands:
+      - |
+        cat << EOF > aws-config.txt
+        [default]
+        role_arn = arn:aws:iam::${TARGET_ACCOUNT}:role/${TARGET_ROLE}
+        credential_source = EcsContainer
+        EOF
+      - cat aws-config.txt
+      - AWS_CONFIG_FILE="$(pwd)/aws-config.txt" aws sts get-caller-identity
